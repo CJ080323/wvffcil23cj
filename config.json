@@ -1,0 +1,46 @@
+{
+  "seconds_per_peso": 600,
+  "rate_seconds": {
+    "1": 600,
+    "5": 3000,
+    "10": 6000,
+    "20": 12000
+  },
+  "admin_password": "admin123",
+  "host": "0.0.0.0",
+  "port": 5500,
+  "portal_ip": "10.0.0.1",
+  "portal_port": 80,
+  "secret_key": "piso-wifi-dev",
+  "coin_pending_seconds": 60,
+  "voucher_code_length": 8,
+  "accent_color": "#1e899f",
+  "site_name": "Piso Wifi",
+  "logo_url": "",
+  "license_key": "PWF1-20291231-UGlzbyBXaWZp-3A45C4399038-72f67bbd1f18",
+  "device_id": "3A45C4399038",
+  "access_provider": "omada",
+  "hotspot": {
+    "enabled": false,
+    "ssid": "PisoWiFi",
+    "passphrase": "pisowifi123",
+    "channel": 6,
+    "wifi_interface": "enx00e04c880520",
+    "wan_interface": "eth0",
+    "gateway_ip": "10.0.0.1",
+    "dhcp_start": "10.0.0.50",
+    "dhcp_end": "10.0.0.150",
+    "lease_hours": 12,
+    "country_code": "PH",
+    "hidden": false
+  },
+  "omada": {
+    "controller_url": "https://tplink.eap.net",
+    "controller_port": 8043,
+    "controller_id": "site-123",
+    "operator_name": "admin",
+    "operator_password": "admin",
+    "verify_ssl": false,
+    "login_version": "v5"
+  }
+}

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ site_name }} Portal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        :root {
+            --accent: {{ accent_color }};
+            --accent-2: {{ accent_color_deep }};
+            --accent-rgb: {{ accent_color_rgb }};
+        }
+    </style>
+</head>
+<body class="portal-page">
+    <main class="shell">
+        <section class="hero-card">
+            <div class="hero-copy">
+                <div class="brand-lockup">
+                    {% if logo_url %}
+                    <img class="brand-logo" src="{{ logo_url }}" alt="{{ site_name }} logo">
+                    {% endif %}
+                    <h1>{{ site_name }}</h1>
+                </div>
+                <p class="subcopy">Insert coin to start or continue your session.</p>
+                <div id="license-alert" class="license-alert {% if license.valid %}hidden{% endif %}">
+                    <strong>License Required</strong>
+                    <span id="license-alert-text">{{ license.message }}</span>
+                </div>
+                <div id="access-alert" class="license-alert {% if not access.portal_detected and access.provider != 'omada' %}hidden{% endif %}">
+                    <strong id="access-alert-title">{% if access.provider == "omada" %}Omada Portal{% else %}Portal Context{% endif %}</strong>
+                    <span id="access-alert-text">
+                        {% if access.portal_detected %}
+                        Guest session detected{% if access.portal_ssid %} on {{ access.portal_ssid }}{% endif %}.
+                        {% elif access.provider == "omada" %}
+                        Open this portal from the Omada guest network so the controller parameters are attached.
+                        {% else %}
+                        No external portal parameters detected.
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="status-panel">
+                <div class="status-ring">
+                    <span id="minutes">0</span>
+                    <small>minutes left</small>
+                </div>
+                <div class="status-meta">
+                    <p><strong id="status-label">Ready</strong></p>
+                    <p id="time-text">No active session yet.</p>
+                    <p id="ip-text" class="muted">Checking device address...</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="actions-card">
+            <div class="card-header">
+                <div>
+                    <h2>Session Controls</h2>
+                </div>
+                <div class="rate-badge">+{{ seconds_per_peso // 60 }} min / peso</div>
+            </div>
+
+            <div class="action-grid">
+                <button class="primary" onclick="insertCoin()">Insert Coin</button>
+                <button class="secondary" onclick="pauseSession()">Pause Time</button>
+                <button class="secondary" onclick="resumeSession()">Resume Time</button>
+            </div>
+
+            <div id="message" class="message" aria-live="polite"></div>
+        </section>
+
+        <section class="actions-card">
+            <div class="card-header">
+                <div>
+                    <h2>Redeem Voucher</h2>
+                </div>
+                <div class="rate-badge">Voucher Code</div>
+            </div>
+
+            <form id="voucher-form" class="login-form">
+                <input id="voucher-code" type="text" placeholder="Enter voucher code" autocomplete="off" required>
+                <button class="primary" type="submit">Redeem</button>
+            </form>
+
+            <div id="voucher-message" class="message" aria-live="polite"></div>
+        </section>
+    </main>
+
+    <script>
+        function formatTime(totalSeconds) {
+            const seconds = Math.max(0, Number(totalSeconds || 0));
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const remainingSeconds = seconds % 60;
+
+            if (hours > 0) {
+                return `${hours}h ${minutes}m ${remainingSeconds}s`;
+            }
+            if (minutes > 0) {
+                return `${minutes}m ${remainingSeconds}s`;
+            }
+            return `${remainingSeconds}s`;
+        }
+
+        function setMessage(text, type = "") {
+            const message = document.getElementById("message");
+            message.textContent = text || "";
+            message.className = `message ${type}`.trim();
+        }
+
+        function renderStatus(data) {
+            const time = Number(data.time || 0);
+            const paused = Boolean(data.pause);
+            const waitingForCoin = Boolean(data.waiting_for_coin);
+            const waitingSecondsLeft = Math.max(0, Number(data.waiting_seconds_left || 0));
+            const license = data.license || {};
+            const access = data.access || {};
+
+            document.getElementById("minutes").textContent = Math.ceil(time / 60);
+            document.getElementById("time-text").textContent =
+                waitingForCoin ? `Insert coins now. Window closes in ${waitingSecondsLeft}s.` :
+                time > 0 ? `Remaining time: ${formatTime(time)}` : "No active session yet.";
+            document.getElementById("status-label").textContent =
+                waitingForCoin ? "Coin Window Open" :
+                time <= 0 ? "Ready" : paused ? "Paused" : "Active";
+            document.getElementById("ip-text").textContent = `Device IP: ${data.ip || "Unavailable"}`;
+            document.getElementById("license-alert").classList.toggle("hidden", Boolean(license.valid));
+            document.getElementById("license-alert-text").textContent = license.message || "License required.";
+            document.getElementById("access-alert").classList.toggle("hidden", !access.portal_detected && access.provider !== "omada");
+            document.getElementById("access-alert-title").textContent = access.provider === "omada" ? "Omada Portal" : "Portal Context";
+            document.getElementById("access-alert-text").textContent = access.portal_detected
+                ? `Guest session detected${access.portal_ssid ? ` on ${access.portal_ssid}` : ""}${access.portal_site ? ` at site ${access.portal_site}` : ""}.`
+                : access.message || "No external portal parameters detected.";
+        }
+
+        function handleAccessRedirect(data) {
+            const access = data.access || {};
+            if (access.provider === "omada" && access.authorized && access.redirect_url) {
+                window.location.href = access.redirect_url;
+            }
+        }
+
+        async function requestJson(url, options = {}) {
+            const response = await fetch(url, {
+                headers: { "Content-Type": "application/json" },
+                ...options
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || "Request failed.");
+            }
+            return data;
+        }
+
+        async function refreshStatus() {
+            try {
+                const data = await requestJson("/api/status");
+                renderStatus(data);
+            } catch (error) {
+                setMessage(error.message, "error");
+            }
+        }
+
+        async function insertCoin() {
+            try {
+                const data = await requestJson("/api/insert_coin", { method: "POST" });
+                renderStatus(data);
+                handleAccessRedirect(data);
+                setMessage(
+                    data.coin_slot_ready
+                        ? "Coin window started for 60 seconds. Each coin extends it back to 60 seconds."
+                        : "Coin slot GPIO is not available on this machine yet.",
+                    data.coin_slot_ready ? "success" : "error"
+                );
+            } catch (error) {
+                setMessage(error.message, "error");
+            }
+        }
+
+        async function pauseSession() {
+            try {
+                const data = await requestJson("/api/pause", { method: "POST" });
+                renderStatus(data);
+                setMessage("Your remaining time is now paused.", "success");
+            } catch (error) {
+                setMessage(error.message, "error");
+            }
+        }
+
+        async function resumeSession() {
+            try {
+                const data = await requestJson("/api/resume", { method: "POST" });
+                renderStatus(data);
+                handleAccessRedirect(data);
+                setMessage("Your session has resumed.", "success");
+            } catch (error) {
+                setMessage(error.message, "error");
+            }
+        }
+
+        document.getElementById("voucher-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const input = document.getElementById("voucher-code");
+            const code = input.value.trim().toUpperCase();
+            if (!code) {
+                const message = document.getElementById("voucher-message");
+                message.textContent = "Enter a voucher code.";
+                message.className = "message error";
+                return;
+            }
+
+            try {
+                const data = await requestJson("/api/redeem_voucher", {
+                    method: "POST",
+                    body: JSON.stringify({ code })
+                });
+                renderStatus(data);
+                handleAccessRedirect(data);
+                input.value = "";
+                const pesos = Number(data.voucher?.pesos || 0);
+                const message = document.getElementById("voucher-message");
+                message.textContent = `Voucher redeemed. Added ${pesos} peso${pesos === 1 ? "" : "s"} of time.`;
+                message.className = "message success";
+                setMessage("Voucher applied successfully.", "success");
+            } catch (error) {
+                const message = document.getElementById("voucher-message");
+                message.textContent = error.message;
+                message.className = "message error";
+            }
+        });
+
+        refreshStatus();
+        setInterval(refreshStatus, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+interface={{WIFI_INTERFACE}}
+bind-interfaces
+listen-address={{GATEWAY_IP}}
+dhcp-range={{DHCP_RANGE}}
+dhcp-option=3,{{GATEWAY_IP}}
+dhcp-option=6,{{GATEWAY_IP}}
+address=/#/{{GATEWAY_IP}}
+domain-needed
+bogus-priv

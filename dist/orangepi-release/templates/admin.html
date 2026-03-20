@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ site_name }} Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        :root {
+            --accent: {{ accent_color }};
+            --accent-2: {{ accent_color_deep }};
+            --accent-rgb: {{ accent_color_rgb }};
+        }
+
+        .admin-topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 8px;
+        }
+
+        .admin-topbar a {
+            color: var(--accent-2);
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        .admin-brand strong {
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .admin-brand span {
+            color: var(--muted);
+        }
+
+        .admin-helper {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 18px;
+        }
+
+        .admin-note {
+            padding: 18px;
+            border-radius: 20px;
+            background: rgba(255, 248, 237, 0.92);
+            border: 1px solid var(--line);
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .admin-note strong {
+            display: block;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        @media (max-width: 900px) {
+            .admin-topbar,
+            .admin-helper {
+                display: grid;
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body class="admin-page">
+    <main class="shell admin-shell">
+        <div class="admin-topbar">
+            <div class="admin-brand">
+                <div class="brand-lockup admin-lockup">
+                    {% if logo_url %}
+                    <img class="brand-logo" src="{{ logo_url }}" alt="{{ site_name }} logo">
+                    {% endif %}
+                    <strong>{{ site_name }} Admin</strong>
+                </div>
+                <span>Operator dashboard</span>
+            </div>
+            <a href="{{ portal_base_url }}">Open Portal</a>
+        </div>
+
+        <section class="hero-card compact">
+            <div class="hero-copy">
+                <p class="eyebrow">Admin Console</p>
+                <h1>Monitor sessions, add time, and control active clients.</h1>
+                <p class="subcopy">
+                    This dashboard stays in sync with the live session list and gives you quick control
+                    over pause, extension, and disconnect actions.
+                </p>
+            </div>
+            <div class="status-panel stacked">
+                <div class="metric-tile">
+                    <span id="active-count">0</span>
+                    <small>active clients</small>
+                </div>
+                <div class="metric-tile">
+                    <span id="paused-count">0</span>
+                    <small>paused</small>
+                </div>
+                <div class="metric-tile">
+                    <span id="minutes-total">0</span>
+                    <small>minutes left</small>
+                </div>
+                <div class="metric-tile">
+                    <span id="unused-vouchers">0</span>
+                    <small>unused vouchers</small>
+                </div>
+            </div>
+        </section>
+
+        <section id="login-card" class="actions-card {% if authenticated %}hidden{% endif %}">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Secure Access</p>
+                    <h2>Admin login</h2>
+                </div>
+            </div>
+            <form id="login-form" class="login-form">
+                <input id="password" type="password" placeholder="Enter admin password" required>
+                <button class="primary" type="submit">Sign In</button>
+            </form>
+            <div id="login-message" class="message" aria-live="polite"></div>
+
+            <div class="admin-helper">
+                <div class="admin-note">
+                    <strong>Login Required</strong>
+                    Use the admin password from `config.json` to access the live dashboard.
+                </div>
+                <div class="admin-note">
+                    <strong>Captive Portal</strong>
+                    Customer portal address: {{ portal_base_url }}
+                </div>
+            </div>
+        </section>
+
+        <section id="dashboard-card" class="actions-card {% if not authenticated %}hidden{% endif %}">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Live Sessions</p>
+                    <h2>Connected clients</h2>
+                </div>
+                <button class="ghost" id="logout-button" type="button">Log Out</button>
+            </div>
+
+            <div class="table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>IP Address</th>
+                            <th>Status</th>
+                            <th>Remaining Time</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clients-body">
+                        <tr>
+                            <td colspan="4" class="empty-row">No active clients yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="dashboard-message" class="message" aria-live="polite"></div>
+        </section>
+
+        <section id="rates-card" class="actions-card {% if not authenticated %}hidden{% endif %}">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Time Conversion</p>
+                    <h2>Edit peso rates</h2>
+                </div>
+            </div>
+
+            <form id="rates-form" class="rates-form">
+                <label class="field-card">
+                    <span>1 Peso Seconds</span>
+                    <input id="rate-1" type="number" min="60" step="60" value="{{ rate_seconds['1'] }}" required>
+                </label>
+                <label class="field-card">
+                    <span>5 Peso Seconds</span>
+                    <input id="rate-5" type="number" min="60" step="60" value="{{ rate_seconds['5'] }}" required>
+                </label>
+                <label class="field-card">
+                    <span>10 Peso Seconds</span>
+                    <input id="rate-10" type="number" min="60" step="60" value="{{ rate_seconds['10'] }}" required>
+                </label>
+                <label class="field-card">
+                    <span>20 Peso Seconds</span>
+                    <input id="rate-20" type="number" min="60" step="60" value="{{ rate_seconds['20'] }}" required>
+                </label>
+                <button class="primary" type="submit">Save Conversion</button>
+            </form>
+            <div class="form-hint muted">Set how many seconds each amount should give. Changes apply to new coin credits, vouchers, and admin-added time.</div>
+            <div id="rates-message" class="message" aria-live="polite"></div>
+        </section>
+
+        <section id="theme-card" class="actions-card {% if not authenticated %}hidden{% endif %}">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Theme Accent</p>
+                    <h2>Change highlight color</h2>
+                </div>
+            </div>
+
+            <form id="theme-form" class="theme-form">
+                <label class="field-card color-field">
+                    <span>Accent Color</span>
+                    <input id="accent-color" type="color" value="{{ accent_color }}" required>
+                </label>
+                <button class="primary" type="submit">Save Accent</button>
+            </form>
+            <div class="form-hint muted">This updates the main highlight color used across the portal and admin dashboard.</div>
+            <div id="theme-message" class="message" aria-live="polite"></div>
+        </section>
+
+        <section id="license-card" class="actions-card {% if not authenticated %}hidden{% endif %}">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Licensing</p>
+                    <h2>Manage software license</h2>
+                </div>
+                <div id="license-badge" class="rate-badge">{{ license.status|upper }}</div>
+            </div>
+
+            <div class="license-grid">
+                <div class="admin-note">
+                    <strong id="license-owner">{{ license.licensed_to or "Not licensed" }}</strong>
+                    <span id="license-expiry">
+                        {% if license.expires_on %}
+                        Expires on {{ license.expires_on }}
+                        {% else %}
+                        Install a valid license key to enable customer actions.
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="admin-note">
+                    <strong>Status</strong>
+                    <span id="license-status-text">{{ license.message }}</span>
+                </div>
+                <div class="admin-note">
+                    <strong>Device ID</strong>
+                    <span id="license-device-id">{{ license.device_id }}</span>
+                </div>
+            </div>
+
+            <form id="license-form" class="branding-form">
+                <label class="field-card">
+                    <span>License Key</span>
+                    <input id="license-key" type="text" value="{{ license.license_key }}" placeholder="PWF1-YYYYMMDD-NAME-DEVICEID-SIGNATURE">
+                </label>
+                <button class="primary" type="submit">Save License</button>
+            </form>
+            <div class="form-hint muted">Paste a valid offline license key bound to this device ID. Customer actions are blocked when the license is missing, expired, or for another device.</div>
+            <div id="license-message" class="message" aria-live="polite"></div>
+        </section>
+
+        <section id="branding-card" class="actions-card {% if not authenticated %}hidden{% endif %}">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Branding</p>
+                    <h2>Change name and logo</h2>
+                </div>
+            </div>
+
+            <form id="branding-form" class="branding-form">
+                <label class="field-card">
+                    <span>Portal Name</span>
+                    <input id="site-name" type="text" value="{{ site_name }}" maxlength="60" required>
+                </label>
+                <label class="field-card">
+                    <span>Logo URL or Path</span>
+                    <input id="logo-url" type="text" value="{{ logo_url }}" placeholder="https://example.com/logo.png or /static/logo.png">
+                </label>
+                <button class="primary" type="submit">Save Branding</button>
+            </form>
+            <div class="form-hint muted">Use an `http/https` image URL or a local path like `/static/logo.png`. Leave the logo blank if you only want text.</div>
+            <div id="branding-message" class="message" aria-live="polite"></div>
+        </section>
+
+        <section id="voucher-card" class="actions-card {% if not authenticated %}hidden{% endif %}">
+            <div class="card-header">
+                <div>
+                    <p class="eyebrow">Voucher Manager</p>
+                    <h2>Create and track vouchers</h2>
+                </div>
+            </div>
+
+            <form id="voucher-form" class="voucher-form">
+                <input id="voucher-pesos" type="number" min="1" value="1" required>
+                <input id="voucher-count" type="number" min="1" max="100" value="5" required>
+                <button class="primary" type="submit">Generate Vouchers</button>
+            </form>
+            <div class="form-hint muted">Generate 1 to 100 voucher codes at a time.</div>
+            <div id="voucher-message" class="message" aria-live="polite"></div>
+
+            <div class="table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Value</th>
+                            <th>Status</th>
+                            <th>Redeemed By</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vouchers-body">
+                        <tr>
+                            <td colspan="5" class="empty-row">No vouchers yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const authenticatedInitially = {{ "true" if authenticated else "false" }};
+
+        function formatTime(totalSeconds) {
+            const seconds = Math.max(0, Number(totalSeconds || 0));
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const remainingSeconds = seconds % 60;
+
+            if (hours > 0) {
+                return `${hours}h ${minutes}m ${remainingSeconds}s`;
+            }
+            if (minutes > 0) {
+                return `${minutes}m ${remainingSeconds}s`;
+            }
+            return `${remainingSeconds}s`;
+        }
+
+        function setMessage(targetId, text, type = "") {
+            const node = document.getElementById(targetId);
+            node.textContent = text || "";
+            node.className = `message ${type}`.trim();
+        }
+
+        async function requestJson(url, options = {}) {
+            const response = await fetch(url, {
+                headers: { "Content-Type": "application/json" },
+                ...options
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || "Request failed.");
+            }
+            return data;
+        }
+
+        function setAuthenticated(isAuthenticated) {
+            document.getElementById("login-card").classList.toggle("hidden", isAuthenticated);
+            document.getElementById("dashboard-card").classList.toggle("hidden", !isAuthenticated);
+            document.getElementById("rates-card").classList.toggle("hidden", !isAuthenticated);
+            document.getElementById("theme-card").classList.toggle("hidden", !isAuthenticated);
+            document.getElementById("license-card").classList.toggle("hidden", !isAuthenticated);
+            document.getElementById("branding-card").classList.toggle("hidden", !isAuthenticated);
+            document.getElementById("voucher-card").classList.toggle("hidden", !isAuthenticated);
+        }
+
+        function renderClients(payload) {
+            const clients = payload.clients || [];
+            document.getElementById("active-count").textContent = payload.summary?.active_clients ?? 0;
+            document.getElementById("paused-count").textContent = payload.summary?.paused_clients ?? 0;
+            document.getElementById("minutes-total").textContent = payload.summary?.total_minutes_left ?? 0;
+
+            const tbody = document.getElementById("clients-body");
+            if (!clients.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-row">No active clients yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = clients.map((client) => `
+                <tr>
+                    <td data-label="IP Address">${client.ip}</td>
+                    <td data-label="Status"><span class="pill ${client.pause ? 'warn' : 'ok'}">${client.pause ? 'Paused' : 'Active'}</span></td>
+                    <td data-label="Remaining Time">${formatTime(client.time)}</td>
+                    <td data-label="Actions" class="action-cell">
+                        <button class="ghost small" onclick="togglePause('${client.ip}')">${client.pause ? 'Resume' : 'Pause'}</button>
+                        <button class="ghost small" onclick="addTime('${client.ip}')">+1 Peso</button>
+                        <button class="ghost small danger" onclick="disconnectClient('${client.ip}')">Disconnect</button>
+                    </td>
+                </tr>
+            `).join("");
+        }
+
+        function renderVouchers(payload) {
+            const vouchers = payload.vouchers || [];
+            document.getElementById("unused-vouchers").textContent = payload.summary?.unused_vouchers ?? 0;
+
+            const tbody = document.getElementById("vouchers-body");
+            if (!vouchers.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-row">No vouchers yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = vouchers.map((voucher) => `
+                <tr>
+                    <td data-label="Code"><strong>${voucher.code}</strong></td>
+                    <td data-label="Value">${voucher.pesos} peso${voucher.pesos === 1 ? '' : 's'} (${formatTime(voucher.seconds)})</td>
+                    <td data-label="Status"><span class="pill ${voucher.redeemed ? 'warn' : 'ok'}">${voucher.redeemed ? 'Redeemed' : 'Unused'}</span></td>
+                    <td data-label="Redeemed By">${voucher.redeemed_by || '-'}</td>
+                    <td data-label="Actions" class="action-cell">
+                        <button class="ghost small danger" onclick="deleteVoucher('${voucher.code}')" ${voucher.redeemed ? 'disabled' : ''}>Delete</button>
+                    </td>
+                </tr>
+            `).join("");
+        }
+
+        function renderRates(payload) {
+            const rates = payload.rates || {};
+            document.getElementById("rate-1").value = rates["1"] ?? "";
+            document.getElementById("rate-5").value = rates["5"] ?? "";
+            document.getElementById("rate-10").value = rates["10"] ?? "";
+            document.getElementById("rate-20").value = rates["20"] ?? "";
+        }
+
+        function applyAccent(accentColor, accentColorDeep, accentColorRgb) {
+            document.documentElement.style.setProperty("--accent", accentColor);
+            document.documentElement.style.setProperty("--accent-2", accentColorDeep);
+            document.documentElement.style.setProperty("--accent-rgb", accentColorRgb);
+        }
+
+        function renderTheme(payload) {
+            const accentColor = payload.accent_color || "{{ accent_color }}";
+            const accentColorDeep = payload.accent_color_deep || "{{ accent_color_deep }}";
+            const accentColorRgb = payload.accent_color_rgb || "{{ accent_color_rgb }}";
+            document.getElementById("accent-color").value = accentColor;
+            applyAccent(accentColor, accentColorDeep, accentColorRgb);
+        }
+
+        function renderBranding(payload) {
+            const siteName = payload.site_name || "{{ site_name }}";
+            const logoUrl = payload.logo_url || "";
+            document.getElementById("site-name").value = siteName;
+            document.getElementById("logo-url").value = logoUrl;
+        }
+
+        function renderLicense(payload) {
+            document.getElementById("license-key").value = payload.license_key || "";
+            document.getElementById("license-owner").textContent = payload.licensed_to || "Not licensed";
+            document.getElementById("license-expiry").textContent = payload.expires_on
+                ? `Expires on ${payload.expires_on}`
+                : "Install a valid license key to enable customer actions.";
+            document.getElementById("license-status-text").textContent = payload.message || "License status unavailable.";
+            document.getElementById("license-device-id").textContent = payload.device_id || "-";
+            document.getElementById("license-badge").textContent = String(payload.status || "unknown").toUpperCase();
+            document.getElementById("license-badge").className = `rate-badge ${payload.valid ? 'license-ok' : 'license-bad'}`;
+        }
+
+        let pollHandle = null;
+
+        function startPolling() {
+            if (pollHandle !== null) {
+                return;
+            }
+            pollHandle = setInterval(loadDashboardData, 3000);
+        }
+
+        function stopPolling() {
+            if (pollHandle !== null) {
+                clearInterval(pollHandle);
+                pollHandle = null;
+            }
+        }
+
+        async function loadDashboardData() {
+            try {
+                const [clientsPayload, vouchersPayload] = await Promise.all([
+                    requestJson("/api/admin/clients"),
+                    requestJson("/api/admin/vouchers")
+                ]);
+                renderClients(clientsPayload);
+                renderVouchers(vouchersPayload);
+                setMessage("dashboard-message", "");
+            } catch (error) {
+                if (error.message === "Unauthorized") {
+                    setAuthenticated(false);
+                    stopPolling();
+                } else {
+                    setMessage("dashboard-message", error.message, "error");
+                    setMessage("branding-message", error.message, "error");
+                    setMessage("voucher-message", error.message, "error");
+                }
+            }
+        }
+
+        async function loadSettingsData() {
+            try {
+                const [ratesPayload, themePayload, brandingPayload, licensePayload] = await Promise.all([
+                    requestJson("/api/admin/rates"),
+                    requestJson("/api/admin/theme"),
+                    requestJson("/api/admin/branding"),
+                    requestJson("/api/admin/license")
+                ]);
+                renderRates(ratesPayload);
+                renderTheme(themePayload);
+                renderBranding(brandingPayload);
+                renderLicense(licensePayload);
+                setMessage("rates-message", "");
+                setMessage("theme-message", "");
+                setMessage("license-message", "");
+                setMessage("branding-message", "");
+            } catch (error) {
+                if (error.message === "Unauthorized") {
+                    setAuthenticated(false);
+                    stopPolling();
+                } else {
+                    setMessage("rates-message", error.message, "error");
+                    setMessage("theme-message", error.message, "error");
+                    setMessage("license-message", error.message, "error");
+                    setMessage("branding-message", error.message, "error");
+                }
+            }
+        }
+
+        async function loadAdminData() {
+            await Promise.all([loadDashboardData(), loadSettingsData()]);
+        }
+
+        async function togglePause(ip) {
+            try {
+                await requestJson(`/api/admin/client/${encodeURIComponent(ip)}/toggle_pause`, { method: "POST" });
+                await loadDashboardData();
+                setMessage("dashboard-message", `Updated ${ip}.`, "success");
+            } catch (error) {
+                setMessage("dashboard-message", error.message, "error");
+            }
+        }
+
+        async function addTime(ip) {
+            try {
+                await requestJson(`/api/admin/client/${encodeURIComponent(ip)}/add_time`, {
+                    method: "POST",
+                    body: JSON.stringify({ pesos: 1 })
+                });
+                await loadDashboardData();
+                setMessage("dashboard-message", `Added time to ${ip}.`, "success");
+            } catch (error) {
+                setMessage("dashboard-message", error.message, "error");
+            }
+        }
+
+        async function disconnectClient(ip) {
+            try {
+                await requestJson(`/api/admin/client/${encodeURIComponent(ip)}`, { method: "DELETE" });
+                await loadDashboardData();
+                setMessage("dashboard-message", `${ip} disconnected.`, "success");
+            } catch (error) {
+                setMessage("dashboard-message", error.message, "error");
+            }
+        }
+
+        async function deleteVoucher(code) {
+            if (!confirm(`Delete voucher ${code}?`)) {
+                return;
+            }
+
+            try {
+                await requestJson(`/api/admin/voucher/${encodeURIComponent(code)}`, { method: "DELETE" });
+                await loadDashboardData();
+                setMessage("voucher-message", `Deleted voucher ${code}.`, "success");
+            } catch (error) {
+                setMessage("voucher-message", error.message, "error");
+            }
+        }
+
+        document.getElementById("login-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            try {
+                await requestJson("/admin/login", {
+                    method: "POST",
+                    body: JSON.stringify({ password: document.getElementById("password").value })
+                });
+                document.getElementById("password").value = "";
+                setAuthenticated(true);
+                setMessage("login-message", "");
+                await loadAdminData();
+                startPolling();
+            } catch (error) {
+                setMessage("login-message", error.message, "error");
+            }
+        });
+
+        document.getElementById("logout-button").addEventListener("click", async () => {
+            await requestJson("/admin/logout", { method: "POST" });
+            setAuthenticated(false);
+            stopPolling();
+            setMessage("dashboard-message", "");
+            setMessage("rates-message", "");
+            setMessage("theme-message", "");
+            setMessage("license-message", "");
+            setMessage("branding-message", "");
+            setMessage("voucher-message", "");
+        });
+
+        document.getElementById("rates-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            try {
+                const rates = {
+                    "1": Number(document.getElementById("rate-1").value || 0),
+                    "5": Number(document.getElementById("rate-5").value || 0),
+                    "10": Number(document.getElementById("rate-10").value || 0),
+                    "20": Number(document.getElementById("rate-20").value || 0)
+                };
+                const payload = await requestJson("/api/admin/rates", {
+                    method: "POST",
+                    body: JSON.stringify({ rates })
+                });
+                renderRates(payload);
+                setMessage("rates-message", "Time conversion updated.", "success");
+            } catch (error) {
+                setMessage("rates-message", error.message, "error");
+            }
+        });
+
+        document.getElementById("theme-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            try {
+                const payload = await requestJson("/api/admin/theme", {
+                    method: "POST",
+                    body: JSON.stringify({ accent_color: document.getElementById("accent-color").value })
+                });
+                renderTheme(payload);
+                setMessage("theme-message", "Accent color updated.", "success");
+            } catch (error) {
+                setMessage("theme-message", error.message, "error");
+            }
+        });
+
+        document.getElementById("license-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            try {
+                const payload = await requestJson("/api/admin/license", {
+                    method: "POST",
+                    body: JSON.stringify({ license_key: document.getElementById("license-key").value })
+                });
+                renderLicense(payload);
+                setMessage("license-message", payload.valid ? "License updated." : payload.message, payload.valid ? "success" : "error");
+            } catch (error) {
+                setMessage("license-message", error.message, "error");
+            }
+        });
+
+        document.getElementById("branding-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            try {
+                const payload = await requestJson("/api/admin/branding", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        site_name: document.getElementById("site-name").value,
+                        logo_url: document.getElementById("logo-url").value
+                    })
+                });
+                renderBranding(payload);
+                setMessage("branding-message", "Branding updated. Refresh the portal page to see the new name and logo.", "success");
+            } catch (error) {
+                setMessage("branding-message", error.message, "error");
+            }
+        });
+
+        document.getElementById("voucher-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            try {
+                const pesos = Number(document.getElementById("voucher-pesos").value || 1);
+                const count = Number(document.getElementById("voucher-count").value || 1);
+                const payload = await requestJson("/api/admin/vouchers", {
+                    method: "POST",
+                    body: JSON.stringify({ pesos, count })
+                });
+                await loadDashboardData();
+                const codes = (payload.created || []).map((voucher) => voucher.code).join(", ");
+                setMessage("voucher-message", `Generated ${(payload.created || []).length} voucher(s): ${codes}`, "success");
+            } catch (error) {
+                setMessage("voucher-message", error.message, "error");
+            }
+        });
+
+        setAuthenticated(authenticatedInitially);
+        if (authenticatedInitially) {
+            loadAdminData();
+            startPolling();
+        }
+    </script>
+</body>
+</html>

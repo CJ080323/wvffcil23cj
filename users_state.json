@@ -1,0 +1,25 @@
+{
+  "saved_at": 1773982470,
+  "users": {
+    "192.168.1.26": {
+      "time": 0,
+      "pause": false,
+      "created_at": 1773982470,
+      "waiting_for_coin": false,
+      "waiting_since": null,
+      "last_coin_at": null,
+      "portal_context": {},
+      "access_result": null
+    }
+  },
+  "vouchers": {
+    "EVNH48EA": {
+      "code": "EVNH48EA",
+      "pesos": 6,
+      "seconds": 3600,
+      "created_at": 1773627866,
+      "redeemed_at": 1773627912,
+      "redeemed_by": "127.0.0.1"
+    }
+  }
+}
